@@ -1,94 +1,90 @@
 import streamlit as st
 from PIL import Image
 import numpy as np
-import cv2
 from sklearn.cluster import KMeans
 
-# -------------------------
-# 1. Extract Dominant Colors
-# -------------------------
-def extract_color(image_path, clusters=3):
-    img = cv2.imread(image_path)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    pixel_data = img.reshape((-1, 3))
+# ---------------------------------------------------
+# 1. Extract Dominant Colors WITHOUT CV2
+# ---------------------------------------------------
+def extract_color_pil(image, clusters=3):
+    img = image.resize((200, 200))  # reduce size for speed
+    pixel_data = np.array(img).reshape(-1, 3)
 
+    # KMeans clustering
     kmeans = KMeans(n_clusters=clusters)
     labels = kmeans.fit_predict(pixel_data)
     colors = kmeans.cluster_centers_.astype(int)
 
-    # Count percentage of each color
+    # Count cluster percentage
     counts = np.bincount(labels)
-    percentages = counts / len(labels) * 100
+    percentages = (counts / len(labels)) * 100
 
     return colors, percentages
 
 
-# -------------------------
-# 2. Jewelry Recommendation
-# -------------------------
+# ---------------------------------------------------
+# 2. Jewellery Recommendation
+# ---------------------------------------------------
 def recommend_jewelry(colors):
     recommendations = []
 
     for r, g, b in colors:
         if r > g and r > b:
-            recommendations.append(("Gold", "🟡 Gold jewelry suits this warm tone."))
+            recommendations.append(("Gold", "🟡 Gold jewelry enhances warm tones."))
         elif b > r and b > g:
-            recommendations.append(("Silver", "⚪ Silver jewelry suits this cool tone."))
+            recommendations.append(("Silver", "⚪ Silver jewelry enhances cool tones."))
         else:
             recommendations.append(("Rose Gold", "🌸 Rose gold suits this balanced tone."))
-    
+
     return recommendations
 
 
-# -------------------------
-# 3. Streamlit Premium UI
-# -------------------------
+# ---------------------------------------------------
+# 3. Streamlit UI
+# ---------------------------------------------------
+st.set_page_config(page_title="Jewellery Color Analyzer", layout="wide")
 
-st.set_page_config(page_title="Jewelry Color Analyzer", layout="wide")
+st.title("💍 AI-Powered Jewellery Color Analyzer")
+st.write("Upload an image and get personalized jewellery suggestions based on dominant colors.")
 
-st.title("💍 AI-Powered Jewelry Color Analyzer")
-st.write("Upload your photo and get personalized jewelry recommendations based on your color tones.")
+uploaded_img = st.file_uploader("📸 Upload Image", type=["jpg", "jpeg", "png"])
 
-uploaded = st.file_uploader("📸 Upload image", type=["jpg", "jpeg", "png"])
-
-if uploaded:
-    col1, col2 = st.columns([1,1.2])
+if uploaded_img:
+    col1, col2 = st.columns([1, 1.3])
 
     with col1:
-        img = Image.open(uploaded)
+        img = Image.open(uploaded_img).convert("RGB")
         st.image(img, caption="Uploaded Image", use_container_width=True)
 
-        temp_path = "temp.jpg"
-        img.save(temp_path)
-
     with col2:
-        colors, percentages = extract_color(temp_path)
+        colors, percentages = extract_color_pil(img)
 
-        st.subheader("🎨 Dominant Colors & Percentages")
+        st.subheader("🎨 Dominant Colors")
 
         for idx, color in enumerate(colors):
             r, g, b = color
-            hex_color = '#%02x%02x%02x' % (r, g, b)
+            hex_color = f'#{r:02x}{g:02x}{b:02x}'
             pct = round(percentages[idx], 2)
 
             st.markdown(
                 f"""
-                <div style='display:flex;align-items:center;margin-bottom:8px'>
-                    <div style='width:50px;height:25px;background:{hex_color};border-radius:5px;margin-right:10px'></div>
-                    <span style='font-size:16px;color:#333;'>RGB: {color.tolist()} — <b>{pct}%</b></span>
+                <div style='display:flex;align-items:center;margin-bottom:10px;'>
+                    <div style='width:60px;height:30px;background:{hex_color};
+                                border-radius:5px;border:1px solid #ccc;margin-right:12px;'></div>
+                    <span style='font-size:16px;'>RGB: {color.tolist()} — <b>{pct}%</b></span>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
 
-        st.subheader("💡 Jewelry Recommendations")
+        st.subheader("💡 Recommended Jewellery")
 
         rec = recommend_jewelry(colors)
 
-        for metal, text in rec:
+        for metal, message in rec:
             if metal == "Gold":
-                st.success(f"🟡 {text}")
+                st.success(message)
             elif metal == "Silver":
-                st.info(f"⚪ {text}")
+                st.info(message)
             else:
-                st.warning(f"🌸 {text}")
+                st.warning(message)
